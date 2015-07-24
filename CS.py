@@ -1,12 +1,17 @@
 from matplotlib import pyplot as plt
 from numpy import real, imag, zeros, arange, pi, sin, linspace, ceil,\
-     argsort
+     argsort, eye
 import numpy.fft
-from numpy.random import randn, random_sample, randint
+from numpy.random import randn, choice, random_sample
 
 from matplotlib import gridspec
 
+from sklearn.linear_model import lasso
 
+
+
+
+    
 class demo():
 
     def sig(self, t):
@@ -43,7 +48,7 @@ class demo():
     def fourier_plot(self,f,X, xlim=[-50,50], stem=True):
 
         # find non-zeros
-        valid = abs(X) > .4
+        valid = abs(X) > 1
 
         if stem:
             plt.stem(f[valid], real(X[valid]), linefmt='b-',
@@ -69,42 +74,40 @@ class demo():
         
         plt.plot(t, xt)
         plt.xlabel("time [s]"); plt.ylabel("amplitude")
+        plt.xlim([0,.5])
 
 
-    def uniform_sample(self, n_samples):
+    def uniform_sample(self, ds_factor):
 
-        decimate = ceil((self.duration /self.dt)/n_samples)
 
-        
-        tn = linspace(0, self.duration, n_samples)
-        
-        xn = zeros(decimate*n_samples)
-        xn[::decimate] = self.sig(tn)
-
-        t = arange(0,self.duration,
-                   self.duration/(decimate*n_samples))
+        t = arange(0,self.duration,self.dt)
         xt = self.sig(t)
         Xf,f = self.fft(xt,t)
 
+        xn = zeros(xt.size)
+        xn[::ds_factor] = self.sig(t[::ds_factor])
 
-        Xfn = numpy.fft.fft(xn, n=xn.size*50)
-        fn = numpy.fft.fftfreq(xn.size*50,
-                               self.duration/(decimate*n_samples))
 
-      
+        Xfn = numpy.fft.fft(xn)*ds_factor
+        fn = numpy.fft.fftfreq(xn.size, self.dt)
+
+
+        Xfn[abs(fn) > 50] = 0.0
+        recon = real(numpy.fft.ifft(Xfn))
 
         gs = gridspec.GridSpec(2, 1)
 
         ax1 = plt.subplot(gs[0,0])
-        ax1.stem(tn, xn[::decimate])
+        ax1.stem(t[::ds_factor], xn[::ds_factor])
         ax1.plot(t, xt, 'g', linewidth=.65)
-       
+        ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
+        ax1.set_xlim([0,.5])
 
         ax2 =  plt.subplot(gs[1,0])
         self.fourier_plot(fn,Xfn, stem=False)
 
-     
-    
+        plt.tight_layout()
+        
     def aliased(self):
 
         duration = .1
@@ -180,40 +183,53 @@ class demo():
         ax3.plot([0,.1], [0,0], 'k-')
         plt.tight_layout()
 
-    def random_sample(self, n_samples):
-
-
-        
-        decimate = ceil((self.duration /self.dt)/n_samples)
+    def random_sample(self, ds_factor=15, threshold=0,
+                      ncoeffs='all'):
 
         
-        
-        t_ind = randint(0,decimate*n_samples, n_samples)
-        tn = linspace(0, self.duration, decimate*n_samples)
-        tn = tn[t_ind]
-        
-        xn = zeros(decimate*n_samples)
-        xn[t_ind] = self.sig(tn)
-
-        t = arange(0,self.duration,
-                   self.duration/(decimate*n_samples))
+        t = arange(0,self.duration,self.dt)
         xt = self.sig(t)
         Xf,f = self.fft(xt,t)
 
+        samples = choice(range(xt.size), int(xt.size/ds_factor),
+                         replace=False)
+        
+        xn = zeros(xt.size)
+        xn[samples] = self.sig(t[samples])
 
-        Xfn = numpy.fft.fft(xn, n=5*xn.size)
-        fn = numpy.fft.fftfreq(5*xn.size,
-                               self.duration/(decimate*n_samples))
+
+        Xfn = numpy.fft.fft(xn)*ds_factor
+        fn = numpy.fft.fftfreq(xn.size, self.dt)
+
+
+        Xfn[abs(fn) > 50] = 0.0
+        Xfn[abs(Xfn) < threshold] = 0.0
+
+
+        if ncoeffs != 'all':
+
+            coeffs = argsort(abs(Xfn))[::-1][:ncoeffs]
+            values = Xfn[coeffs]
+            Xfn *= 0
+            Xfn[coeffs] = values
+            
+        recon = real(numpy.fft.ifft(Xfn))
 
         gs = gridspec.GridSpec(2, 1)
 
         ax1 = plt.subplot(gs[0,0])
-        ax1.stem(tn, xn[t_ind])
+        ax1.stem(t[samples], xn[samples])
         ax1.plot(t, xt, 'g', linewidth=.65)
-       
+        ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
+        ax1.set_xlim([0,.5])
 
         ax2 =  plt.subplot(gs[1,0])
-        self.fourier_plot(fn,Xfn, stem=False, xlim=[-50,50])
+        self.fourier_plot(fn,Xfn, stem=False)
+
+        plt.tight_layout()
+        
+
+        
     
 
         
