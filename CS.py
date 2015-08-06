@@ -22,9 +22,9 @@ class demo():
         self.f2 = 40. #[Hz]
         self.phi1 = pi/5.
         self.phi2 = pi/9.
-        self.duration = 20
+        self.duration = 10.0
 
-        self.ny_dt = 1.0/(2*(self.f2))
+        self.ny_dt = 1.0/(2*(self.f2+10))
 
         self.dt = .001 # high sample rate, pretend to be continuous
 
@@ -47,12 +47,12 @@ class demo():
         dt = t[1]-t[0]
 
         # pad up so dt is
-        Xf = numpy.fft.fft(xt) / xt.size
-        f = numpy.fft.fftfreq(xt.size, self.dt)
+        Xf = numpy.fft.rfft(xt) / xt.size
+        f = numpy.fft.rfftfreq(xt.size, self.dt)
     
         return [Xf, f]
     
-    def fourier_plot(self,f,X, xlim=[-50,50], stem=True):
+    def fourier_plot(self,f,X, xlim=[0,50], stem=True):
 
         # find non-zeros
         valid = abs(X) > 1
@@ -100,15 +100,13 @@ class demo():
         xn[::ds_factor] = self.sig(ny_t[::ds_factor])
 
 
-        Xfn = (numpy.fft.fft(xn))/xn.size
-        fn = numpy.fft.fftfreq(xn.size, self.ny_dt)
+        Xfn = (numpy.fft.rfft(xn))/xn.size
+        fn = numpy.fft.rfftfreq(xn.size, self.ny_dt)
 
         # zero pad for recon
-        reconF = zeros(xt.size, dtype=np.complex64)
-        reconF[:Xfn.size/2] = Xfn[:Xfn.size/2]
-        reconF[-Xfn.size/2:] = Xfn[Xfn.size/2:]
-        
-        recon = real(numpy.fft.ifft(reconF))
+        reconF = zeros(xt.size/2 +1, dtype=np.complex64)
+        reconF[:Xfn.size] = Xfn
+        recon = real(numpy.fft.irfft(reconF))
 
         gs = gridspec.GridSpec(2, 1)
 
@@ -210,9 +208,10 @@ class demo():
         ax3.plot([0,.1], [0,0], 'k-')
         plt.tight_layout()
 
-    def random_sample(self, ds_factor=3, threshold=0.0,
+    def random_sample(self, downsample_factor=5, threshold=0.0,
                       ncoeffs='all'):
 
+        ds_factor = downsample_factor
         
         t = arange(0,self.duration,self.dt)
         xt = self.sig(t)
@@ -225,32 +224,39 @@ class demo():
         xn = zeros(x_nyq.size)
         xn[samples] = self.sig(ny_t[samples])
         
-        Xfn = numpy.fft.fft(xn, 10*xt.size)
-        fn = numpy.fft.fftfreq(10*xt.size, self.ny_dt)
+        Xfn = numpy.fft.rfft(xn)*ds_factor / xn.size
+        fn = numpy.fft.rfftfreq(xn.size, self.ny_dt)
 
-        Xfn[abs(Xfn) < threshold] = 0.0
-
+        if threshold > 0:
+            Xfn[abs(Xfn) < threshold] = 0.0
+            Xfn *= ds_factor
 
         if ncoeffs != 'all':
 
             coeffs = argsort(abs(Xfn))[::-1][:ncoeffs]
             values = Xfn[coeffs]
             Xfn *= 0
-            Xfn[coeffs] = values
-            
-        recon = real(numpy.fft.ifft(Xfn))
+            Xfn[coeffs] = values*downsample_factor
+
+        reconF = zeros(xt.size/2 +1, dtype=np.complex64)
+        reconF[:Xfn.size] = Xfn
+        recon = real(numpy.fft.irfft(reconF))*xt.size/ds_factor
 
         gs = gridspec.GridSpec(2, 1)
 
         ax1 = plt.subplot(gs[0,0])
         ax1.stem(ny_t[samples], xn[samples], basefmt='b-')
-        ax1.plot(t, xt, 'g', linewidth=.65)
+        ax1.plot(t, xt, 'g', linewidth=.65, label="True")
+        ax1.set_ylim(-200,200)
         ax1.plot([0,1], [0,0])
-        #ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
+        ax1.plot(t, recon[:recon.size],'r', linewidth=.65,
+                 label="Reconstructed")
         ax1.set_xlim([0,.5])
 
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+        
         ax2 =  plt.subplot(gs[1,0])
-        self.fourier_plot(fn,Xfn, stem=False)
+        self.fourier_plot(fn,Xfn/downsample_factor, stem=False)
         plt.plot([-50,50], [threshold,threshold], 'k--')
 
         plt.tight_layout()
