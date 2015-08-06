@@ -22,9 +22,9 @@ class demo():
         self.f2 = 40. #[Hz]
         self.phi1 = pi/5.
         self.phi2 = pi/9.
-        self.duration = 2.0#[s]
+        self.duration = 20
 
-        self.ny_dt = 1.0/(2*(self.f2+1))
+        self.ny_dt = 1.0/(2*(self.f2))
 
         self.dt = .001 # high sample rate, pretend to be continuous
 
@@ -199,34 +199,35 @@ class demo():
         ax2.stem(samples, sin(2*pi*10*samples),
                  linefmt='b-', markerfmt='bo', basefmt='k-')
         ax2.set_xlim(0,.1)
+        ax2.set_ylim(-1,1)
+        
         ax2.plot([0,.1], [0,0], 'k-')
         ax3 = plt.subplot(gs[2,0])
         ax3.stem(samples, sin(2*pi*(10 + ny/8)*samples),
                  linefmt='g-', markerfmt='go', basefmt='k-')
         ax3.set_xlim(0,.1)
+        ax3.set_ylim(-1,1)
         ax3.plot([0,.1], [0,0], 'k-')
         plt.tight_layout()
 
-    def random_sample(self, ds_factor=15, threshold=0,
+    def random_sample(self, ds_factor=3, threshold=0.0,
                       ncoeffs='all'):
 
         
         t = arange(0,self.duration,self.dt)
         xt = self.sig(t)
-        Xf,f = self.fft(xt,t)
 
-        samples = choice(range(xt.size), int(xt.size/ds_factor),
+        ny_t = arange(0,self.duration,self.ny_dt)
+        x_nyq = self.sig(ny_t)
+        samples = choice(range(ny_t.size), int(ny_t.size/ds_factor),
                          replace=False)
         
-        xn = zeros(xt.size)
-        xn[samples] = self.sig(t[samples])
+        xn = zeros(x_nyq.size)
+        xn[samples] = self.sig(ny_t[samples])
+        
+        Xfn = numpy.fft.fft(xn, 10*xt.size)
+        fn = numpy.fft.fftfreq(10*xt.size, self.ny_dt)
 
-
-        Xfn = numpy.fft.fft(xn)*ds_factor
-        fn = numpy.fft.fftfreq(xn.size, self.dt)
-
-
-        Xfn[abs(fn) > 50] = 0.0
         Xfn[abs(Xfn) < threshold] = 0.0
 
 
@@ -242,13 +243,15 @@ class demo():
         gs = gridspec.GridSpec(2, 1)
 
         ax1 = plt.subplot(gs[0,0])
-        ax1.stem(t[samples], xn[samples])
+        ax1.stem(ny_t[samples], xn[samples], basefmt='b-')
         ax1.plot(t, xt, 'g', linewidth=.65)
-        ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
+        ax1.plot([0,1], [0,0])
+        #ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
         ax1.set_xlim([0,.5])
 
         ax2 =  plt.subplot(gs[1,0])
         self.fourier_plot(fn,Xfn, stem=False)
+        plt.plot([-50,50], [threshold,threshold], 'k--')
 
         plt.tight_layout()
         
