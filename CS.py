@@ -1,18 +1,32 @@
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 from numpy import real, imag, zeros, arange, pi, sin, linspace, ceil,\
-     argsort, eye
+     argsort, eye, abs
 import numpy.fft
 from numpy.random import randn, choice, random_sample
 
+import numpy as np
 from matplotlib import gridspec
 
-from sklearn.linear_model import lasso
+
 
 
 
 
     
 class demo():
+
+    def __init__(self):
+
+        self.f1 = 10. #[Hz]
+        self.f2 = 40. #[Hz]
+        self.phi1 = pi/5.
+        self.phi2 = pi/9.
+        self.duration = 2.0#[s]
+
+        self.ny_dt = 1.0/(2*(self.f2+1))
+
+        self.dt = .001 # high sample rate, pretend to be continuous
 
     def sig(self, t):
 
@@ -21,18 +35,11 @@ class demo():
           100.0*sin(2*pi*self.f2*t + pi*self.phi2)
 
     
-    def test_signal(self,f1=10, f2=40, phi1=0, phi2=0, duration=.5):
-
-        self.f1 = f1
-        self.f2 = f2
-        self.phi1 = phi1
-        self.phi2 = phi2
-        self.duration = duration
-
-        self.dt = .001
+    def test_signal(self):
         
-        t = arange(0, duration, self.dt)
+        t = arange(0, self.duration, self.dt)
         xt = self.sig(t)
+        
         return [xt,t]
 
     def fft(self, xt, t):
@@ -51,12 +58,13 @@ class demo():
         valid = abs(X) > 1
 
         if stem:
-            plt.stem(f[valid], real(X[valid]), linefmt='b-',
+            
+            plt.stem(f[valid], abs(X[valid]),
+                     linefmt='b-',
                     markerfmt='go', basefmt='k-')
-            plt.stem(f[valid], imag(X[valid]), linefmt='b-',
-                    markerfmt='ro',basefmt='k-')
+            
             plt.plot(xlim, [0,0])
-            plt.legend(['real', 'imag'])
+            
         else:
 
             index = argsort(f)
@@ -64,9 +72,9 @@ class demo():
             #plt.plot(f, imag(X), 'r-')
         
         plt.xlabel('frequency [Hz]')
-        plt.ylabel('amplitude')
+        plt.ylabel('|A|')
         plt.xlim(xlim)
-
+        #plt.ylim(0,75)
   
 
     
@@ -75,36 +83,53 @@ class demo():
         plt.plot(t, xt)
         plt.xlabel("time [s]"); plt.ylabel("amplitude")
         plt.xlim([0,.5])
+        plt.ylim([-300,300])
 
 
-    def uniform_sample(self, ds_factor):
+    def uniform_sample(self, downsample_factor):
 
-
+        ds_factor = downsample_factor
+        
         t = arange(0,self.duration,self.dt)
         xt = self.sig(t)
-        Xf,f = self.fft(xt,t)
 
-        xn = zeros(xt.size)
-        xn[::ds_factor] = self.sig(t[::ds_factor])
+        ny_t = arange(0,self.duration,self.ny_dt)
+        x_nyq = self.sig(ny_t)
 
-
-        Xfn = numpy.fft.fft(xn)*ds_factor
-        fn = numpy.fft.fftfreq(xn.size, self.dt)
+        xn = zeros(x_nyq.size)
+        xn[::ds_factor] = self.sig(ny_t[::ds_factor])
 
 
-        Xfn[abs(fn) > 50] = 0.0
-        recon = real(numpy.fft.ifft(Xfn))
+        Xfn = (numpy.fft.fft(xn))/xn.size
+        fn = numpy.fft.fftfreq(xn.size, self.ny_dt)
+
+        # zero pad for recon
+        reconF = zeros(xt.size, dtype=np.complex64)
+        reconF[:Xfn.size/2] = Xfn[:Xfn.size/2]
+        reconF[-Xfn.size/2:] = Xfn[Xfn.size/2:]
+        
+        recon = real(numpy.fft.ifft(reconF))
 
         gs = gridspec.GridSpec(2, 1)
 
         ax1 = plt.subplot(gs[0,0])
-        ax1.stem(t[::ds_factor], xn[::ds_factor])
-        ax1.plot(t, xt, 'g', linewidth=.65)
-        ax1.plot(t, recon[:recon.size],'r', linewidth=.65)
-        ax1.set_xlim([0,.5])
+  
+        ax1.plot(t, xt, 'g', linewidth=.65, label='True')
+        ax1.plot(t, recon*xt.size,'r', linewidth=.65,
+                 label='Reconstructed')
 
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+        ax1.stem(ny_t[::ds_factor],x_nyq[::ds_factor],
+                 basefmt='b-')
+
+       
+        ax1.set_xlim([0,.5])
+        ax1.set_ylim([-300,300])
+              
         ax2 =  plt.subplot(gs[1,0])
         self.fourier_plot(fn,Xfn, stem=False)
+
+        
 
         plt.tight_layout()
         
@@ -133,13 +158,12 @@ class demo():
                  linefmt='b-', markerfmt='bo', basefmt='k-')
         ax2.set_xlim(0,.1)
         ax2.plot([0,.1], [0,0], 'k-')
-        
+
         ax3 = plt.subplot(gs[2,0])
+
         ax3.stem(samples, sin(2*pi*(10 + ny/8)*samples),
                  linefmt='g-', markerfmt='go', basefmt='k-')
         ax3.set_xlim(0,.1)
-        ax3.plot([0,.1], [0,0], 'k-')
-        
         plt.tight_layout()
 
         
