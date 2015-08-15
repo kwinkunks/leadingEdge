@@ -81,12 +81,13 @@ class demo():
     def ts_plot(self, t, xt):
         
         plt.plot(t, xt)
-        plt.xlabel("time [s]"); plt.ylabel("amplitude")
+        plt.xlabel("time [s]")
+        plt.ylabel("amplitude [arbitrary units]")
         plt.xlim([0,.5])
         plt.ylim([-300,300])
 
 
-    def uniform_sample(self, downsample_factor):
+    def uniform_sample(self, downsample_factor, ):
 
         ds_factor = downsample_factor
         
